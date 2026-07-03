@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRDGE Outreach</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✉️</text></svg>" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="brand-mark">BRDGE</span> Outreach
+    </div>
+    <nav>
+      <button class="tab active" data-view="compose">Compose</button>
+      <button class="tab" data-view="finish">Finish a draft</button>
+      <button class="tab" data-view="contacts">Contacts</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============ COMPOSE ============ -->
+    <section id="view-compose" class="view active">
+      <div class="two-col">
+        <div class="panel">
+          <h2>New message</h2>
+
+          <label>Recipient</label>
+          <select id="compose-contact"></select>
+
+          <div id="adhoc-fields" class="adhoc hidden">
+            <div class="row">
+              <input id="adhoc-name" placeholder="Name" />
+              <input id="adhoc-role" placeholder="Role / title" />
+            </div>
+            <div class="row">
+              <input id="adhoc-company" placeholder="Company" />
+            </div>
+            <textarea id="adhoc-context" rows="2" placeholder="What do you know about them / how did you cross paths?"></textarea>
+          </div>
+
+          <div id="contact-history" class="history hidden"></div>
+
+          <div class="row">
+            <div class="field">
+              <label>Channel</label>
+              <select id="compose-channel">
+                <option value="email">Email</option>
+                <option value="linkedin_connection">LinkedIn — connection request</option>
+                <option value="linkedin_message">LinkedIn — message</option>
+                <option value="linkedin_inmail">LinkedIn — InMail</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Type</label>
+              <select id="compose-type">
+                <option value="cold">Cold outreach</option>
+                <option value="warm">Warm outreach</option>
+                <option value="follow_up">Follow-up</option>
+                <option value="intro_request">Ask for an intro</option>
+                <option value="make_intro">Make an intro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tone</label>
+              <select id="compose-tone">
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="direct">Direct</option>
+                <option value="casual">Casual</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Goal of this message</label>
+          <input id="compose-goal" placeholder="e.g. book a 20-min demo of Strēm next week" />
+
+          <label>Extra context <span class="muted">(optional — anything the message should use)</span></label>
+          <textarea id="compose-context" rows="3" placeholder="e.g. Met at the CFA event Tuesday, she mentioned her team drowns in earnings transcripts during reporting season…"></textarea>
+
+          <button id="compose-generate" class="primary">Generate message</button>
+        </div>
+
+        <div class="panel output-panel">
+          <div class="output-header">
+            <h2>Draft</h2>
+            <div class="output-actions hidden" id="compose-actions">
+              <button class="small" data-refine="Make it shorter">Shorter</button>
+              <button class="small" data-refine="Make it warmer and more personal">Warmer</button>
+              <button class="small" data-refine="Make it more direct and confident">More direct</button>
+              <button class="small" id="compose-regenerate">↻ Regenerate</button>
+              <button class="small copy-btn" id="compose-copy">Copy</button>
+            </div>
+          </div>
+          <pre id="compose-output" class="output" data-placeholder="Your draft will appear here."></pre>
+          <div class="refine-row hidden" id="compose-refine-row">
+            <input id="compose-refine-input" placeholder="Tell it how to change the draft… e.g. mention the Q3 earnings angle" />
+            <button id="compose-refine-btn" class="small">Refine</button>
+          </div>
+          <div id="compose-charcount" class="charcount"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINISH ============ -->
+    <section id="view-finish" class="view">
+      <div class="two-col">
+        <div class="panel">
+          <h2>Finish a draft</h2>
+          <p class="muted">Paste an email or message you started — it will be completed in your voice.</p>
+
+          <label>Your unfinished draft</label>
+          <textarea id="finish-draft" rows="9" placeholder="Subject: Following up from the panel&#10;&#10;Hi Sarah,&#10;&#10;Great meeting you after the fintech panel yesterday. You mentioned your analysts spend most of earnings week just collecting transcripts, and I…"></textarea>
+
+          <div class="row">
+            <div class="field">
+              <label>Recipient <span class="muted">(optional)</span></label>
+              <select id="finish-contact"></select>
+            </div>
+            <div class="field">
+              <label>Channel</label>
+              <select id="finish-channel">
+                <option value="email">Email</option>
+                <option value="linkedin_message">LinkedIn — message</option>
+                <option value="linkedin_inmail">LinkedIn — InMail</option>
+                <option value="linkedin_connection">LinkedIn — connection request</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tone</label>
+              <select id="finish-tone">
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="direct">Direct</option>
+                <option value="casual">Casual</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Where should it land? <span class="muted">(optional)</span></label>
+          <input id="finish-goal" placeholder="e.g. end with an ask for a 20-min call Thursday or Friday" />
+
+          <button id="finish-generate" class="primary">Complete my draft</button>
+        </div>
+
+        <div class="panel output-panel">
+          <div class="output-header">
+            <h2>Completed message</h2>
+            <div class="output-actions hidden" id="finish-actions">
+              <button class="small" id="finish-regenerate">↻ Regenerate</button>
+              <button class="small copy-btn" id="finish-copy">Copy</button>
+            </div>
+          </div>
+          <pre id="finish-output" class="output" data-placeholder="The completed message will appear here."></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACTS ============ -->
+    <section id="view-contacts" class="view">
+      <div class="two-col">
+        <div class="panel">
+          <h2>Add contact</h2>
+          <div class="row">
+            <input id="c-name" placeholder="Name *" />
+            <input id="c-role" placeholder="Role / title" />
+          </div>
+          <div class="row">
+            <input id="c-company" placeholder="Company" />
+            <select id="c-relationship">
+              <option value="cold">Cold — never talked</option>
+              <option value="warm">Warm — some contact</option>
+              <option value="existing">Existing relationship</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="c-email" placeholder="Email" />
+            <input id="c-linkedin" placeholder="LinkedIn URL" />
+          </div>
+          <textarea id="c-notes" rows="2" placeholder="Notes — what matters to them, mutual connections, anything useful"></textarea>
+          <button id="c-add" class="primary">Add contact</button>
+        </div>
+
+        <div class="panel">
+          <h2>Contacts</h2>
+          <div id="contact-list" class="contact-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="view-settings" class="view">
+      <div class="panel narrow">
+        <h2>Settings</h2>
+        <p class="muted">This context is fed to every message the tool writes. Keep it accurate and current.</p>
+
+        <label>Company profile</label>
+        <textarea id="s-company" rows="5"></textarea>
+
+        <label>Value points <span class="muted">(the model uses at most one per message)</span></label>
+        <textarea id="s-valueprops" rows="4"></textarea>
+
+        <label>About you (the sender)</label>
+        <textarea id="s-sender" rows="2"></textarea>
+
+        <label>Email signature</label>
+        <textarea id="s-signature" rows="2"></textarea>
+
+        <button id="s-save" class="primary">Save settings</button>
+        <span id="s-status" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
