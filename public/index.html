@@ -184,7 +184,16 @@
         </div>
 
         <div class="panel">
-          <h2>Contacts</h2>
+          <div class="output-header">
+            <h2>Contacts</h2>
+            <div class="output-actions">
+              <button class="small" id="export-json" title="Full backup — your partner imports this to get contacts AND interaction history">Export (share file)</button>
+              <button class="small" id="export-csv" title="Spreadsheet-friendly list">Export CSV</button>
+              <button class="small" id="import-btn">Import</button>
+              <input type="file" id="import-file" accept=".json,application/json" class="hidden" />
+            </div>
+          </div>
+          <p class="muted" style="margin-bottom:10px">To share with a teammate: <b>Export (share file)</b> → send it to them → they click <b>Import</b>. Imports merge — existing contacts are matched by email and their histories are combined, never overwritten.</p>
           <div id="contact-list" class="contact-list"></div>
         </div>
       </div>

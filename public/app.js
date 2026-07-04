@@ -351,6 +351,41 @@ $('#contact-list').addEventListener('click', async (e) => {
   }
 });
 
+// ---------- export / import ----------
+$('#export-json').addEventListener('click', () => {
+  window.location.href = '/api/contacts/export';
+});
+
+$('#export-csv').addEventListener('click', () => {
+  window.location.href = '/api/contacts/export.csv';
+});
+
+$('#import-btn').addEventListener('click', () => $('#import-file').click());
+
+$('#import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    return toast('That file is not a valid JSON export', true);
+  }
+  try {
+    const res = await api.send('POST', '/api/contacts/import', parsed);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Import failed');
+    }
+    const { added, merged, skipped } = await res.json();
+    await loadContacts();
+    toast(`Imported: ${added} new, ${merged} merged${skipped ? `, ${skipped} skipped` : ''}`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 // ---------- settings ----------
 async function loadSettings() {
   const s = await api.get('/api/settings');

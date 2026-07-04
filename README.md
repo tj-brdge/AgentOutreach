@@ -23,6 +23,14 @@ Open http://localhost:3040.
 
 Requires Node 18+ and an Anthropic API key (get one at https://platform.claude.com). Generation uses Claude Opus 4.8 by default; override with `OUTREACH_MODEL` in `.env`.
 
+## Sharing your contact list with a teammate
+
+Two ways, depending on how live you need it:
+
+**1. Pass a file back and forth (simplest).** On the Contacts tab, click **Export (share file)** and send the downloaded JSON to your teammate. They click **Import** on their copy of the app. Imports *merge*: contacts are matched by email (or name + company), blank fields are filled in, and interaction histories are combined — nothing gets overwritten and re-importing the same file is harmless. **Export CSV** gives a spreadsheet-friendly version for anyone who just wants to read the list.
+
+**2. Run one shared instance (live, same list for everyone).** All data lives on the server in `data/db.json`, so if you host the app somewhere you can both reach — a small VPS, Render, Railway, Fly.io, or an always-on machine on your network via Tailscale — you're automatically working off the same contacts, history, and settings in real time. Before exposing it beyond localhost, set `APP_PASSWORD` in `.env`; the app then requires that password (HTTP Basic auth) on every request. Each person still needs nothing installed — it's just a URL.
+
 ## How it's built
 
 - Node + Express server, no build step. Frontend is plain HTML/CSS/JS served from `public/`.

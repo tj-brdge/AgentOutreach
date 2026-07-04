@@ -16,11 +16,52 @@ const app = express();
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
 const MODEL = process.env.OUTREACH_MODEL || 'claude-opus-4-8';
 
-app.use(express.json({ limit: '1mb' }));
+// Optional shared-password protection — set APP_PASSWORD in .env when
+// hosting the app somewhere your team can reach.
+if (process.env.APP_PASSWORD) {
+  app.use((req, res, next) => {
+    const [scheme, encoded] = (req.headers.authorization || '').split(' ');
+    const decoded = scheme === 'Basic' ? Buffer.from(encoded || '', 'base64').toString() : '';
+    const pass = decoded.slice(decoded.indexOf(':') + 1);
+    if (decoded && pass === process.env.APP_PASSWORD) return next();
+    res.set('WWW-Authenticate', 'Basic realm="BRDGE Outreach"').status(401).send('Authentication required');
+  });
+}
+
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Contacts ----------
 app.get('/api/contacts', (req, res) => res.json(store.listContacts()));
+
+// Export the full contact list (with interaction history) as a JSON file
+// your partner can import, or as a CSV for spreadsheets.
+app.get('/api/contacts/export', (req, res) => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Disposition', `attachment; filename="brdge-contacts-${stamp}.json"`);
+  res.json({ exportedAt: new Date().toISOString(), contacts: store.listContacts() });
+});
+
+app.get('/api/contacts/export.csv', (req, res) => {
+  const q = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+  const rows = [
+    ['Name', 'Role', 'Company', 'Relationship', 'Email', 'LinkedIn', 'Notes', 'Interactions'].map(q).join(',')
+  ];
+  for (const c of store.listContacts()) {
+    const history = c.interactions.map((i) => `[${i.date}] (${i.channel}) ${i.summary}`).join(' | ');
+    rows.push([c.name, c.role, c.company, c.relationship, c.email, c.linkedin, c.notes, history].map(q).join(','));
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Disposition', `attachment; filename="brdge-contacts-${stamp}.csv"`);
+  res.type('text/csv').send('\ufeff' + rows.join('\r\n')); // BOM so Excel reads UTF-8
+});
+
+app.post('/api/contacts/import', (req, res) => {
+  // Accepts either a raw array or the { contacts: [...] } shape our export produces
+  const list = Array.isArray(req.body) ? req.body : req.body?.contacts;
+  if (!Array.isArray(list)) return res.status(400).json({ error: 'Expected a JSON export file with a contacts array' });
+  res.json(store.importContacts(list));
+});
 
 app.post('/api/contacts', (req, res) => res.status(201).json(store.createContact(req.body)));
 
