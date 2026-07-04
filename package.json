@@ -1,12 +1,13 @@
 {
   "name": "brdge-outreach",
   "version": "1.0.0",
-  "description": "Outreach assistant for BRDGE Insights — drafts and completes emails and LinkedIn messages from your interaction history",
+  "description": "Outreach assistant for BRDGE Insights \u2014 drafts and completes emails and LinkedIn messages from your interaction history",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

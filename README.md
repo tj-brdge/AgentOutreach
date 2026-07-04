@@ -31,6 +31,19 @@ Two ways, depending on how live you need it:
 
 **2. Run one shared instance (live, same list for everyone).** All data lives on the server in `data/db.json`, so if you host the app somewhere you can both reach — a small VPS, Render, Railway, Fly.io, or an always-on machine on your network via Tailscale — you're automatically working off the same contacts, history, and settings in real time. Before exposing it beyond localhost, set `APP_PASSWORD` in `.env`; the app then requires that password (HTTP Basic auth) on every request. Each person still needs nothing installed — it's just a URL.
 
+## Data safety
+
+- Every save is atomic (write-to-temp + rename), so a crash can never truncate your database.
+- Timestamped backups land in `data/backups/` on every startup and before every import (the last 10 are kept). To restore one, stop the server and copy it over `data/db.json`.
+- If `data/db.json` is ever unreadable, it's preserved as `db.corrupt-<timestamp>.json` instead of being overwritten, and the app starts empty so you can restore from a backup.
+- All input — including imported files — is validated and sanitized: field-length caps, type checks, and enum coercion. A malformed import file skips bad records instead of corrupting good ones.
+
+Run the test suite with `npm test` (covers the merge/dedupe logic, sanitization, API endpoints, auth, and crash recovery).
+
+## Marking messages as sent
+
+After generating a draft for a saved contact, click **✓ Mark as sent** — the full message is logged on that contact. Future drafts to the same person then *build on* what was already said instead of repeating it (the model sees the text of your last few sent messages). **◀ History** lets you flip back through earlier drafts from the current session, so a good draft is never lost to a regenerate.
+
 ## How it's built
 
 - Node + Express server, no build step. Frontend is plain HTML/CSS/JS served from `public/`.

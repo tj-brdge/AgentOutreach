@@ -123,6 +123,62 @@ async function generate(body, outputEl, { onDone } = {}) {
   }
 }
 
+// ---------- draft history + mark as sent ----------
+const draftHistory = []; // this session's completed compose drafts, newest last
+let historyIndex = -1;
+
+function pushDraftHistory(text) {
+  if (!text || draftHistory[draftHistory.length - 1] === text) return;
+  draftHistory.push(text);
+  if (draftHistory.length > 10) draftHistory.shift();
+  historyIndex = draftHistory.length - 1;
+  $('#compose-prev').classList.toggle('hidden', draftHistory.length < 2);
+}
+
+$('#compose-prev').addEventListener('click', () => {
+  if (!draftHistory.length) return;
+  historyIndex = (historyIndex - 1 + draftHistory.length) % draftHistory.length;
+  $('#compose-output').textContent = draftHistory[historyIndex];
+  updateCharCount();
+  toast(`Draft ${historyIndex + 1} of ${draftHistory.length} from this session`);
+});
+
+function channelToInteraction(channel) {
+  return channel === 'email' ? 'email' : 'linkedin';
+}
+
+function sentSummary(text, channel) {
+  const firstLine = text.split('\n').find((l) => l.trim()) || '';
+  const label = channel === 'email' ? 'email' : channel.replace('linkedin_', 'LinkedIn ').replace('_', ' ');
+  const gist = firstLine.startsWith('Subject:') ? firstLine : `"${firstLine.slice(0, 90)}${firstLine.length > 90 ? '…' : ''}"`;
+  return `Sent ${label}: ${gist}`;
+}
+
+async function markAsSent(contactId, text, channel) {
+  const res = await api.send('POST', `/api/contacts/${contactId}/interactions`, {
+    channel: channelToInteraction(channel),
+    summary: sentSummary(text, channel),
+    message: text
+  });
+  if (!res.ok) return toast('Could not log the message', true);
+  await loadContacts();
+  toast('Logged — future drafts to this contact will build on it');
+}
+
+$('#compose-sent').addEventListener('click', () => {
+  const text = $('#compose-output').textContent;
+  const contactId = $('#compose-contact').value;
+  if (!contactId) return toast('Select a saved contact to log sent messages', true);
+  markAsSent(contactId, text, lastComposeBody?.channel || $('#compose-channel').value);
+});
+
+$('#finish-sent').addEventListener('click', () => {
+  const text = $('#finish-output').textContent;
+  const contactId = $('#finish-contact').value;
+  if (!contactId) return toast('Select a saved contact to log sent messages', true);
+  markAsSent(contactId, text, lastFinishBody?.channel || $('#finish-channel').value);
+});
+
 // ---------- compose ----------
 function composeRequestBody() {
   const contactId = $('#compose-contact').value || null;
@@ -169,6 +225,8 @@ async function runCompose(body) {
       btn.textContent = 'Generate message';
       $('#compose-actions').classList.toggle('hidden', !text);
       $('#compose-refine-row').classList.toggle('hidden', !text);
+      $('#compose-sent').classList.toggle('hidden', !text || !$('#compose-contact').value);
+      pushDraftHistory(text);
       updateCharCount();
     }
   });
@@ -225,6 +283,7 @@ async function runFinish(body) {
       btn.disabled = false;
       btn.textContent = 'Complete my draft';
       $('#finish-actions').classList.toggle('hidden', !text);
+      $('#finish-sent').classList.toggle('hidden', !text || !$('#finish-contact').value);
     }
   });
 }

@@ -91,7 +91,9 @@
               <button class="small" data-refine="Make it warmer and more personal">Warmer</button>
               <button class="small" data-refine="Make it more direct and confident">More direct</button>
               <button class="small" id="compose-regenerate">↻ Regenerate</button>
+              <button class="small hidden" id="compose-prev" title="Previous drafts from this session">◀ History</button>
               <button class="small copy-btn" id="compose-copy">Copy</button>
+              <button class="small hidden" id="compose-sent" title="Logs this message on the contact so future drafts build on it">✓ Mark as sent</button>
             </div>
           </div>
           <pre id="compose-output" class="output" data-placeholder="Your draft will appear here."></pre>
@@ -151,6 +153,7 @@
             <div class="output-actions hidden" id="finish-actions">
               <button class="small" id="finish-regenerate">↻ Regenerate</button>
               <button class="small copy-btn" id="finish-copy">Copy</button>
+              <button class="small hidden" id="finish-sent" title="Logs this message on the contact so future drafts build on it">✓ Mark as sent</button>
             </div>
           </div>
           <pre id="finish-output" class="output" data-placeholder="The completed message will appear here."></pre>

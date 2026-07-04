@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
+import crypto from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { store } from './lib/store.js';
 import {
@@ -12,9 +13,12 @@ import {
 } from './lib/prompts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const app = express();
+export const app = express();
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
 const MODEL = process.env.OUTREACH_MODEL || 'claude-opus-4-8';
+
+// Health probe — registered before auth so hosting platforms can reach it.
+app.get('/health', (req, res) => res.json({ ok: true }));
 
 // Optional shared-password protection — set APP_PASSWORD in .env when
 // hosting the app somewhere your team can reach.
@@ -23,7 +27,10 @@ if (process.env.APP_PASSWORD) {
     const [scheme, encoded] = (req.headers.authorization || '').split(' ');
     const decoded = scheme === 'Basic' ? Buffer.from(encoded || '', 'base64').toString() : '';
     const pass = decoded.slice(decoded.indexOf(':') + 1);
-    if (decoded && pass === process.env.APP_PASSWORD) return next();
+    const expected = Buffer.from(process.env.APP_PASSWORD);
+    const given = Buffer.from(pass);
+    const ok = decoded && given.length === expected.length && crypto.timingSafeEqual(given, expected);
+    if (ok) return next();
     res.set('WWW-Authenticate', 'Basic realm="BRDGE Outreach"').status(401).send('Authentication required');
   });
 }
@@ -63,7 +70,11 @@ app.post('/api/contacts/import', (req, res) => {
   res.json(store.importContacts(list));
 });
 
-app.post('/api/contacts', (req, res) => res.status(201).json(store.createContact(req.body)));
+app.post('/api/contacts', (req, res) => {
+  const contact = store.createContact(req.body);
+  if (!contact) return res.status(400).json({ error: 'A contact needs at least a name' });
+  res.status(201).json(contact);
+});
 
 app.put('/api/contacts/:id', (req, res) => {
   const contact = store.updateContact(req.params.id, req.body);
@@ -77,8 +88,9 @@ app.delete('/api/contacts/:id', (req, res) => {
 });
 
 app.post('/api/contacts/:id/interactions', (req, res) => {
+  if (!store.getContact(req.params.id)) return res.status(404).json({ error: 'Contact not found' });
   const interaction = store.addInteraction(req.params.id, req.body);
-  if (!interaction) return res.status(404).json({ error: 'Contact not found' });
+  if (!interaction) return res.status(400).json({ error: 'An interaction needs a summary' });
   res.status(201).json(interaction);
 });
 
@@ -120,8 +132,14 @@ app.post('/api/generate', async (req, res) => {
 
   const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
+  let stream;
+  // Stop paying for tokens nobody will read if the browser goes away mid-draft.
+  req.on('close', () => {
+    if (!res.writableEnded) stream?.abort();
+  });
+
   try {
-    const stream = client.messages.stream({
+    stream = client.messages.stream({
       model: MODEL,
       max_tokens: 4000,
       thinking: { type: 'adaptive' },
@@ -142,6 +160,7 @@ app.post('/api/generate', async (req, res) => {
       });
     }
   } catch (err) {
+    if (err instanceof Anthropic.APIUserAbortError) return; // client disconnected
     const message =
       err instanceof Anthropic.AuthenticationError || /authentication/i.test(err.message)
         ? 'Invalid or missing ANTHROPIC_API_KEY. Set it in .env and restart the server.'
@@ -156,10 +175,13 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3040;
-app.listen(PORT, () => {
-  console.log(`BRDGE Outreach running at http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('⚠ ANTHROPIC_API_KEY is not set — generation will fail until you add it to .env');
-  }
-});
+// Listen only when run directly, so tests can import the app.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const PORT = process.env.PORT || 3040;
+  app.listen(PORT, () => {
+    console.log(`BRDGE Outreach running at http://localhost:${PORT}`);
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.warn('⚠ ANTHROPIC_API_KEY is not set — generation will fail until you add it to .env');
+    }
+  });
+}
