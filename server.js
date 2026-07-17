@@ -134,7 +134,9 @@ app.post('/api/generate', async (req, res) => {
 
   let stream;
   // Stop paying for tokens nobody will read if the browser goes away mid-draft.
-  req.on('close', () => {
+  // Must listen on the RESPONSE: req 'close' fires as soon as the request body
+  // has been fully read (i.e. immediately), which would abort every draft.
+  res.on('close', () => {
     if (!res.writableEnded) stream?.abort();
   });
 
