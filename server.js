@@ -105,6 +105,9 @@ app.delete('/api/contacts/:id/interactions/:interactionId', (req, res) => {
 app.get('/api/settings', (req, res) => res.json(store.getSettings()));
 app.put('/api/settings', (req, res) => res.json(store.updateSettings(req.body)));
 
+// ---------- Stats (weekly goal progress + follow-ups) ----------
+app.get('/api/stats', (req, res) => res.json(store.stats()));
+
 // ---------- Generation (streams text back as SSE) ----------
 app.post('/api/generate', async (req, res) => {
   const { mode, contactId, adhocContact, channel, outreachType, tone, goal, draft, extraContext, currentMessage, instruction } = req.body;

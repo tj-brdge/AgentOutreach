@@ -97,6 +97,60 @@ test('settings round-trip and ignore unknown keys', async () => {
   assert.equal(settings.hacker, undefined);
 });
 
+test('weekly stats count distinct engaged contacts', async () => {
+  const before = await (await fetch(base + '/api/stats')).json();
+
+  const a = await (await json('POST', '/api/contacts', { name: 'Stats A' })).json();
+  const b = await (await json('POST', '/api/contacts', { name: 'Stats B' })).json();
+  // two interactions with A (must count once) + one with B
+  await json('POST', `/api/contacts/${a.id}/interactions`, { summary: 'call one' });
+  await json('POST', `/api/contacts/${a.id}/interactions`, { summary: 'call two' });
+  await json('POST', `/api/contacts/${b.id}/interactions`, { summary: 'intro email' });
+
+  const after = await (await fetch(base + '/api/stats')).json();
+  assert.equal(after.weeks[0].engaged, before.weeks[0].engaged + 2, 'A counts once, B counts once');
+  assert.equal(after.weeks.length, 5);
+  assert.ok(after.weeks[0].start <= after.today && after.today <= addDays(after.weeks[0].start, 6));
+});
+
+test('weekly goal is settable and clamped', async () => {
+  const s = await (await json('PUT', '/api/settings', { weeklyGoal: 15 })).json();
+  assert.equal(s.weeklyGoal, 15);
+  const clamped = await (await json('PUT', '/api/settings', { weeklyGoal: -5 })).json();
+  assert.equal(clamped.weeklyGoal, 0);
+  const ignored = await (await json('PUT', '/api/settings', { weeklyGoal: 'lots' })).json();
+  assert.equal(ignored.weeklyGoal, 0); // non-numeric leaves previous value
+});
+
+test('follow-up dates drive the due list', async () => {
+  const c = await (await json('POST', '/api/contacts', { name: 'Followup Test' })).json();
+  const today = new Date().toISOString().slice(0, 10);
+
+  await json('PUT', `/api/contacts/${c.id}`, { nextFollowUp: addDays(today, -2) });
+  let stats = await (await fetch(base + '/api/stats')).json();
+  assert.ok(stats.dueFollowUps.some((d) => d.id === c.id), 'past date is due');
+
+  await json('PUT', `/api/contacts/${c.id}`, { nextFollowUp: addDays(today, 3) });
+  stats = await (await fetch(base + '/api/stats')).json();
+  assert.ok(!stats.dueFollowUps.some((d) => d.id === c.id), 'future date is not due');
+  assert.ok(stats.upcomingFollowUps.some((d) => d.id === c.id));
+
+  await json('PUT', `/api/contacts/${c.id}`, { nextFollowUp: '' }); // clear
+  stats = await (await fetch(base + '/api/stats')).json();
+  assert.ok(!stats.upcomingFollowUps.some((d) => d.id === c.id));
+});
+
+test('invalid follow-up dates are rejected by sanitization', async () => {
+  const c = await (await json('POST', '/api/contacts', { name: 'Bad Date', nextFollowUp: 'soonish' })).json();
+  assert.equal(c.nextFollowUp, '');
+});
+
+function addDays(iso, days) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 test('generate: finish mode without a draft is a 400', async () => {
   const res = await json('POST', '/api/generate', { mode: 'finish', draft: '  ' });
   assert.equal(res.status, 400);

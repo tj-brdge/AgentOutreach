@@ -37,11 +37,80 @@ $$('.tab').forEach((btn) =>
 
 // ---------- state ----------
 let contacts = [];
+let stats = null;
 
 async function loadContacts() {
   contacts = await api.get('/api/contacts');
   renderContactSelects();
   renderContactList();
+  await loadStats();
+}
+
+// ---------- weekly goal + follow-up stats ----------
+async function loadStats() {
+  stats = await api.get('/api/stats');
+  const bar = $('#statsbar');
+
+  if (stats.goal > 0) {
+    const thisWeek = stats.weeks[0].engaged;
+    const pct = Math.min(100, Math.round((thisWeek / stats.goal) * 100));
+    $('#goal-text').innerHTML = `This week: <b>${thisWeek} / ${stats.goal}</b> contacts engaged`;
+    $('#goal-fill').style.width = pct + '%';
+    $('#goal-fill').classList.toggle('goal-met', thisWeek >= stats.goal);
+    const past = stats.weeks.slice(1).map((w) => w.engaged).reverse();
+    $('#weeks-history').textContent = past.length ? `previous weeks: ${past.join(' · ')}` : '';
+    $('.goal-wrap').classList.remove('hidden');
+  } else {
+    $('.goal-wrap').classList.add('hidden');
+  }
+
+  const due = stats.dueFollowUps.length;
+  $('#due-link').textContent = due ? `⏰ ${due} follow-up${due > 1 ? 's' : ''} due` : '';
+  $('#due-link').classList.toggle('hidden', !due);
+  bar.classList.toggle('hidden', stats.goal <= 0 && !due);
+
+  renderDueSection();
+}
+
+$('#due-link').addEventListener('click', () => switchView('contacts'));
+
+function switchView(view) {
+  $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+  $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${view}`));
+}
+
+function goToCompose(contactId, type) {
+  switchView('compose');
+  $('#compose-contact').value = contactId;
+  $('#compose-contact').dispatchEvent(new Event('change'));
+  if (type) $('#compose-type').value = type;
+}
+
+function renderDueSection() {
+  const section = $('#due-section');
+  if (!stats?.dueFollowUps.length) return section.classList.add('hidden');
+  section.classList.remove('hidden');
+  $('#due-items').innerHTML = stats.dueFollowUps
+    .map((d) => {
+      const overdueDays = Math.round((new Date(stats.today) - new Date(d.nextFollowUp)) / 86400000);
+      const when = overdueDays === 0 ? 'today' : `${overdueDays}d overdue`;
+      return `<div class="due-item" data-id="${d.id}">
+        <span><b>${esc(d.name)}</b>${d.company ? ' · ' + esc(d.company) : ''} <span class="due-when ${overdueDays > 0 ? 'overdue' : ''}">${when}</span></span>
+        <button class="small" data-due-compose="${d.id}">✉ Follow up</button>
+      </div>`;
+    })
+    .join('');
+}
+
+document.addEventListener('click', (e) => {
+  const id = e.target.dataset?.dueCompose;
+  if (id) goToCompose(id, 'follow_up');
+});
+
+async function scheduleFollowUp(contactId, dateStr, { silent } = {}) {
+  const res = await api.send('PUT', `/api/contacts/${contactId}`, { nextFollowUp: dateStr });
+  if (res.ok && !silent) toast(dateStr ? `Follow-up set for ${dateStr}` : 'Follow-up cleared');
+  await loadContacts();
 }
 
 // ---------- contact selects (compose + finish) ----------
@@ -161,8 +230,20 @@ async function markAsSent(contactId, text, channel) {
     message: text
   });
   if (!res.ok) return toast('Could not log the message', true);
-  await loadContacts();
-  toast('Logged — future drafts to this contact will build on it');
+
+  // Never leave a sent message without a scheduled next touch: if no future
+  // follow-up exists, set one 4 days out (editable on the contact card).
+  const contact = contacts.find((c) => c.id === contactId);
+  const today = new Date().toISOString().slice(0, 10);
+  if (!contact?.nextFollowUp || contact.nextFollowUp <= today) {
+    const next = new Date();
+    next.setDate(next.getDate() + 4);
+    await scheduleFollowUp(contactId, next.toISOString().slice(0, 10), { silent: true });
+    toast(`Logged — follow-up scheduled for ${next.toISOString().slice(0, 10)} (change it on the contact card)`);
+  } else {
+    await loadContacts();
+    toast('Logged — future drafts to this contact will build on it');
+  }
 }
 
 $('#compose-sent').addEventListener('click', () => {
@@ -353,6 +434,10 @@ function renderContactList() {
       </div>
       <div class="cc-actions">
         <button class="small" data-compose>✉ Compose to ${esc(c.name.split(' ')[0])}</button>
+        <span class="followup-ctl">
+          <label>Next follow-up</label>
+          <input type="date" data-followup value="${esc(c.nextFollowUp || '')}" />
+        </span>
         <button class="small" data-delete>Delete contact</button>
       </div>
     </div>`
@@ -375,6 +460,12 @@ $('#c-add').addEventListener('click', async () => {
   ['#c-name', '#c-role', '#c-company', '#c-email', '#c-linkedin', '#c-notes'].forEach((s) => ($(s).value = ''));
   await loadContacts();
   toast('Contact added');
+});
+
+$('#contact-list').addEventListener('change', (e) => {
+  if (!e.target.matches('[data-followup]')) return;
+  const card = e.target.closest('.contact-card');
+  scheduleFollowUp(card.dataset.id, e.target.value);
 });
 
 $('#contact-list').addEventListener('click', async (e) => {
@@ -401,12 +492,8 @@ $('#contact-list').addEventListener('click', async (e) => {
     await api.send('DELETE', `/api/contacts/${id}/interactions/${e.target.dataset.delInteraction}`);
     await loadContacts();
   } else if (e.target.matches('[data-compose]')) {
-    $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === 'compose'));
-    $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-compose'));
-    $('#compose-contact').value = id;
-    $('#compose-contact').dispatchEvent(new Event('change'));
     const c = contacts.find((x) => x.id === id);
-    $('#compose-type').value = c?.relationship === 'cold' ? 'cold' : 'warm';
+    goToCompose(id, c?.relationship === 'cold' ? 'cold' : 'warm');
   }
 });
 
@@ -452,6 +539,7 @@ async function loadSettings() {
   $('#s-valueprops').value = s.valueProps || '';
   $('#s-sender').value = s.senderProfile || '';
   $('#s-signature').value = s.signature || '';
+  $('#s-goal').value = s.weeklyGoal ?? 10;
 }
 
 $('#s-save').addEventListener('click', async () => {
@@ -459,10 +547,12 @@ $('#s-save').addEventListener('click', async () => {
     companyProfile: $('#s-company').value,
     valueProps: $('#s-valueprops').value,
     senderProfile: $('#s-sender').value,
-    signature: $('#s-signature').value
+    signature: $('#s-signature').value,
+    weeklyGoal: Number($('#s-goal').value)
   });
   $('#s-status').textContent = ' Saved ✓';
   setTimeout(() => ($('#s-status').textContent = ''), 2500);
+  await loadStats();
 });
 
 // ---------- init ----------

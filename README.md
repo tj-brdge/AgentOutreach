@@ -40,6 +40,17 @@ Two ways, depending on how live you need it:
 
 Run the test suite with `npm test` (covers the merge/dedupe logic, sanitization, API endpoints, auth, and crash recovery).
 
+## Weekly goals and follow-ups
+
+Set a **weekly outreach goal** in Settings (distinct contacts engaged per week). The bar under the header tracks progress for the current week (Mon–Sun) and shows the last four weeks' counts. A contact counts as "engaged" when at least one interaction with them is logged that week — marking a draft as sent counts automatically.
+
+Follow-up discipline is built in:
+
+- Every contact can carry a **Next follow-up** date (set it on the contact card).
+- When you **Mark as sent**, a follow-up is auto-scheduled 4 days out if none exists — a sent message never leaves the pipeline without a next action.
+- Contacts whose date has arrived appear in the **Due for follow-up** list at the top of the Contacts tab (and as a badge in the header), each with a one-click **Follow up** button that opens Compose pre-set to follow-up mode.
+- Following up and marking it sent reschedules the next touch automatically, so the loop never dangles.
+
 ## Marking messages as sent
 
 After generating a draft for a saved contact, click **✓ Mark as sent** — the full message is logged on that contact. Future drafts to the same person then *build on* what was already said instead of repeating it (the model sees the text of your last few sent messages). **◀ History** lets you flip back through earlier drafts from the current session, so a good draft is never lost to a regenerate.

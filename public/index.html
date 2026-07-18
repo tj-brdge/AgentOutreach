@@ -20,6 +20,15 @@
     </nav>
   </header>
 
+  <div id="statsbar" class="statsbar hidden">
+    <div class="goal-wrap" title="Distinct contacts with at least one interaction logged this week (Mon–Sun)">
+      <span id="goal-text"></span>
+      <div class="goal-bar"><div id="goal-fill"></div></div>
+      <span id="weeks-history" class="muted"></span>
+    </div>
+    <button id="due-link" class="small hidden"></button>
+  </div>
+
   <main>
     <!-- ============ COMPOSE ============ -->
     <section id="view-compose" class="view active">
@@ -197,6 +206,10 @@
             </div>
           </div>
           <p class="muted" style="margin-bottom:10px">To share with a teammate: <b>Export (share file)</b> → send it to them → they click <b>Import</b>. Imports merge — existing contacts are matched by email and their histories are combined, never overwritten.</p>
+          <div id="due-section" class="due-section hidden">
+            <h3>⏰ Due for follow-up</h3>
+            <div id="due-items"></div>
+          </div>
           <div id="contact-list" class="contact-list"></div>
         </div>
       </div>
@@ -207,6 +220,9 @@
       <div class="panel narrow">
         <h2>Settings</h2>
         <p class="muted">This context is fed to every message the tool writes. Keep it accurate and current.</p>
+
+        <label>Weekly outreach goal <span class="muted">(distinct contacts engaged per week — 0 turns the tracker off)</span></label>
+        <input id="s-goal" type="number" min="0" max="1000" style="max-width:140px" />
 
         <label>Company profile</label>
         <textarea id="s-company" rows="5"></textarea>
