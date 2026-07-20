@@ -21,6 +21,12 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 
+// Local-time YYYY-MM-DD — toISOString would use UTC and shift evening
+// activity onto tomorrow's date (wrong day, sometimes wrong goal week).
+function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s ?? '';
@@ -96,15 +102,45 @@ function renderDueSection() {
       const when = overdueDays === 0 ? 'today' : `${overdueDays}d overdue`;
       return `<div class="due-item" data-id="${d.id}">
         <span><b>${esc(d.name)}</b>${d.company ? ' · ' + esc(d.company) : ''} <span class="due-when ${overdueDays > 0 ? 'overdue' : ''}">${when}</span></span>
-        <button class="small" data-due-compose="${d.id}">✉ Follow up</button>
+        <span class="due-actions">
+          <button class="small" data-due-compose="${d.id}">✉ Follow up</button>
+          <button class="small" data-got-reply="${d.id}" title="They answered — logs the reply and clears this follow-up">✓ Got a reply</button>
+          <button class="small" data-park="${d.id}" title="No response after several touches — push out 90 days">⏸ Park</button>
+        </span>
       </div>`;
     })
     .join('');
 }
 
+async function gotReply(contactId) {
+  const gist = prompt('What did they say? (optional — helps future drafts)');
+  if (gist === null) return; // cancelled
+  await api.send('POST', `/api/contacts/${contactId}/interactions`, {
+    channel: 'other',
+    summary: gist.trim() ? `Received a reply: ${gist.trim()}` : 'Received a reply'
+  });
+  await api.send('PUT', `/api/contacts/${contactId}`, { nextFollowUp: '' });
+  await loadContacts();
+  toast('Reply logged and follow-up cleared — schedule the next touch when you know it');
+}
+
+async function parkContact(contactId) {
+  const next = new Date();
+  next.setDate(next.getDate() + 90);
+  await api.send('POST', `/api/contacts/${contactId}/interactions`, {
+    channel: 'other',
+    summary: 'Parked after no response — revisit later'
+  });
+  await api.send('PUT', `/api/contacts/${contactId}`, { nextFollowUp: localDate(next) });
+  await loadContacts();
+  toast(`Parked — they'll resurface in the due list on ${localDate(next)}`);
+}
+
 document.addEventListener('click', (e) => {
-  const id = e.target.dataset?.dueCompose;
-  if (id) goToCompose(id, 'follow_up');
+  const d = e.target.dataset || {};
+  if (d.dueCompose) goToCompose(d.dueCompose, 'follow_up');
+  else if (d.gotReply) gotReply(d.gotReply);
+  else if (d.park) parkContact(d.park);
 });
 
 async function scheduleFollowUp(contactId, dateStr, { silent } = {}) {
@@ -234,12 +270,12 @@ async function markAsSent(contactId, text, channel) {
   // Never leave a sent message without a scheduled next touch: if no future
   // follow-up exists, set one 4 days out (editable on the contact card).
   const contact = contacts.find((c) => c.id === contactId);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   if (!contact?.nextFollowUp || contact.nextFollowUp <= today) {
     const next = new Date();
     next.setDate(next.getDate() + 4);
-    await scheduleFollowUp(contactId, next.toISOString().slice(0, 10), { silent: true });
-    toast(`Logged — follow-up scheduled for ${next.toISOString().slice(0, 10)} (change it on the contact card)`);
+    await scheduleFollowUp(contactId, localDate(next), { silent: true });
+    toast(`Logged — follow-up scheduled for ${localDate(next)} (change it on the contact card)`);
   } else {
     await loadContacts();
     toast('Logged — future drafts to this contact will build on it');
@@ -393,13 +429,47 @@ $('#finish-copy').addEventListener('click', async () => {
 });
 
 // ---------- contacts ----------
+function lastTouched(c) {
+  return c.interactions.reduce((max, i) => (i.date > max ? i.date : max), '');
+}
+
+function visibleContacts() {
+  const q = ($('#contact-search').value || '').trim().toLowerCase();
+  let result = contacts;
+  if (q) {
+    result = result.filter((c) =>
+      [c.name, c.company, c.role, c.email, c.notes].some((f) => f && f.toLowerCase().includes(q))
+    );
+  }
+  const sort = $('#contact-sort').value;
+  result = [...result];
+  if (sort === 'name') {
+    result.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sort === 'followup') {
+    // scheduled follow-ups first (soonest at top), unscheduled last
+    result.sort((a, b) => (a.nextFollowUp || '9999') < (b.nextFollowUp || '9999') ? -1 : 1);
+  } else if (sort === 'touched') {
+    result.sort((a, b) => (lastTouched(a) > lastTouched(b) ? -1 : 1));
+  }
+  // 'recent' keeps stored order (newest first)
+  return result;
+}
+
+$('#contact-search').addEventListener('input', renderContactList);
+$('#contact-sort').addEventListener('change', renderContactList);
+
 function renderContactList() {
   const list = $('#contact-list');
   if (!contacts.length) {
     list.innerHTML = '<p class="muted">No contacts yet. Add people you meet — every interaction you log makes future messages sharper.</p>';
     return;
   }
-  list.innerHTML = contacts
+  const shown = visibleContacts();
+  if (!shown.length) {
+    list.innerHTML = '<p class="muted">No contacts match your search.</p>';
+    return;
+  }
+  list.innerHTML = shown
     .map(
       (c) => `
     <div class="contact-card" data-id="${c.id}">
@@ -420,7 +490,7 @@ function renderContactList() {
           : ''
       }
       <div class="log-form">
-        <input type="date" value="${new Date().toISOString().slice(0, 10)}" />
+        <input type="date" value="${localDate()}" />
         <select>
           <option value="meeting">Meeting</option>
           <option value="call">Call</option>
@@ -434,6 +504,7 @@ function renderContactList() {
       </div>
       <div class="cc-actions">
         <button class="small" data-compose>✉ Compose to ${esc(c.name.split(' ')[0])}</button>
+        <button class="small" data-got-reply="${c.id}" title="They answered — logs the reply and clears any scheduled follow-up">✓ Got a reply</button>
         <span class="followup-ctl">
           <label>Next follow-up</label>
           <input type="date" data-followup value="${esc(c.nextFollowUp || '')}" />
@@ -512,14 +583,25 @@ $('#import-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   e.target.value = '';
-  let parsed;
+  const text = await file.text();
+
   try {
-    parsed = JSON.parse(await file.text());
-  } catch {
-    return toast('That file is not a valid JSON export', true);
-  }
-  try {
-    const res = await api.send('POST', '/api/contacts/import', parsed);
+    let res;
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      res = await fetch('/api/contacts/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/csv' },
+        body: text
+      });
+    } else {
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return toast('That file is not a valid JSON export', true);
+      }
+      res = await api.send('POST', '/api/contacts/import', parsed);
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Import failed');

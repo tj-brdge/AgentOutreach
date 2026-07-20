@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { store } from './lib/store.js';
+import { csvToContacts } from './lib/csv.js';
 import {
   buildSystemPrompt,
   buildComposePrompt,
@@ -68,6 +69,18 @@ app.post('/api/contacts/import', (req, res) => {
   const list = Array.isArray(req.body) ? req.body : req.body?.contacts;
   if (!Array.isArray(list)) return res.status(400).json({ error: 'Expected a JSON export file with a contacts array' });
   res.json(store.importContacts(list));
+});
+
+// Import a spreadsheet: header row is mapped to contact fields
+// (Name or First/Last Name required; Company, Role, Email, LinkedIn,
+// Notes, Relationship recognized). Merges like the JSON import.
+app.post('/api/contacts/import-csv', express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
+  if (typeof req.body !== 'string' || !req.body.trim()) {
+    return res.status(400).json({ error: 'Empty CSV file' });
+  }
+  const { contacts, error } = csvToContacts(req.body);
+  if (error) return res.status(400).json({ error });
+  res.json(store.importContacts(contacts));
 });
 
 app.post('/api/contacts', (req, res) => {

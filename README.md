@@ -29,6 +29,8 @@ Two ways, depending on how live you need it:
 
 **1. Pass a file back and forth (simplest).** On the Contacts tab, click **Export (share file)** and send the downloaded JSON to your teammate. They click **Import** on their copy of the app. Imports *merge*: contacts are matched by email (or name + company), blank fields are filled in, and interaction histories are combined — nothing gets overwritten and re-importing the same file is harmless. **Export CSV** gives a spreadsheet-friendly version for anyone who just wants to read the list.
 
+**Import also accepts spreadsheets.** Drop a `.csv` on the same Import button to bring in an existing contact list — the header row is mapped automatically (Name or First/Last Name required; Company/Organization, Role/Title, Email, LinkedIn, Notes, and Relationship/Stage are recognized in common variants). CSV imports merge by the same rules, so re-importing an updated spreadsheet is safe.
+
 **2. Run one shared instance (live, same list for everyone).** All data lives on the server in `data/db.json`, so if you host the app somewhere you can both reach — a small VPS, Render, Railway, Fly.io, or an always-on machine on your network via Tailscale — you're automatically working off the same contacts, history, and settings in real time. Before exposing it beyond localhost, set `APP_PASSWORD` in `.env`; the app then requires that password (HTTP Basic auth) on every request. Each person still needs nothing installed — it's just a URL.
 
 ## Data safety
@@ -50,6 +52,10 @@ Follow-up discipline is built in:
 - When you **Mark as sent**, a follow-up is auto-scheduled 4 days out if none exists — a sent message never leaves the pipeline without a next action.
 - Contacts whose date has arrived appear in the **Due for follow-up** list at the top of the Contacts tab (and as a badge in the header), each with a one-click **Follow up** button that opens Compose pre-set to follow-up mode.
 - Following up and marking it sent reschedules the next touch automatically, so the loop never dangles.
+- **✓ Got a reply** (due list or contact card) logs their response — with an optional gist that improves future drafts — and clears the scheduled follow-up so you don't chase people mid-conversation.
+- **⏸ Park** implements the three-strikes rule: logs that the thread went quiet and pushes the follow-up out 90 days, so dead threads leave the due list without being deleted.
+
+The Contacts tab has filter-as-you-type search and sorting by recently added, follow-up due, last touched, or name.
 
 ## Marking messages as sent
 

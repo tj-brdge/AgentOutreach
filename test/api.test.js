@@ -83,6 +83,32 @@ test('import rejects files without a contacts array', async () => {
   assert.equal(res.status, 400);
 });
 
+test('CSV import creates and merges contacts', async () => {
+  const csv = (body) =>
+    fetch(base + '/api/contacts/import-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/csv' },
+      body
+    });
+
+  const first = await (await csv('Name,Company,Email\nCSV Person,Sheet Co,csv@sheet.co\n')).json();
+  assert.equal(first.added, 1);
+
+  // re-import with more detail merges instead of duplicating
+  const second = await (await csv('Full Name,Work Email,Title\nCSV Person,csv@sheet.co,VP Data\n')).json();
+  assert.deepEqual({ added: second.added, merged: second.merged }, { added: 0, merged: 1 });
+
+  const list = await (await fetch(base + '/api/contacts')).json();
+  const person = list.find((c) => c.email === 'csv@sheet.co');
+  assert.equal(person.role, 'VP Data');
+
+  const bad = await csv('Company\nAcme\n');
+  assert.equal(bad.status, 400);
+
+  const empty = await csv('');
+  assert.equal(empty.status, 400);
+});
+
 test('CSV export quotes fields and includes header', async () => {
   await json('POST', '/api/contacts', { name: 'Comma, Inc "Quotes"', company: 'CSV Co' });
   const text = await (await fetch(base + '/api/contacts/export.csv')).text();
